@@ -33,7 +33,7 @@ android {
         viewBinding true
         dataBinding true
     }
-    packagingOptions {
+    packagingOptions { // https://stackoverflow.com/questions/44342455/more-than-one-file-was-found-with-os-independent-path-meta-inf-license
         resources.excludes.add("META-INF/*")
     }
 }

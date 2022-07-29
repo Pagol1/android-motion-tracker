@@ -99,7 +99,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun endProcess() {}
 
-    private fun switchView() {}
+    private fun switchView() {
+        val newLensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
+        val newCameraSelector = CameraSelector.Builder().requireLensFacing(newLensFacing).build()
+        try {
+            if (cameraProvider!!.hasCamera(newCameraSelector)) {
+                cameraSelector = newCameraSelector
+                lensFacing = newLensFacing
+                bindAllUseCases()
+                return
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Camera cannot be changed: ", e)
+        }
+    }
 
     private fun bindAllUseCases() {
         if (cameraProvider != null) {
