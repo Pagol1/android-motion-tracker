@@ -42,10 +42,12 @@ class MainActivity : AppCompatActivity() {
      */
 
     private lateinit var viewBinding: ActivityMainBinding
+    private var graphicOverlay: GraphicOverlay? = null
     private var previewView: PreviewView? = null
-    private var preview: Preview? = null
+    private var previewUseCase: Preview? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private var cameraSelector: CameraSelector? = null
+    private var cameraProvider: ProcessCameraProvider? = null
     private var processing: Boolean = false
 
     // Unsure if this is the correct one
@@ -54,7 +56,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Binding will merge all of the views into an object, do not need to find views by ID
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
+        graphicOverlay = viewBinding.graphicOverlay
+        // findViewById(R.id.graphicOverlay)
         setContentView(viewBinding.root)
 
         // Request camera permissions
@@ -72,13 +77,52 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
-    private fun startCamera() {}
+    private fun startCamera() {
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+
+        cameraProviderFuture.addListener({
+            cameraProvider = cameraProviderFuture.get()
+            previewUseCase = Preview.Builder().build().also {
+                it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
+            }
+            cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+            // Bind all of these to the camera
+            try {
+                cameraProvider!!.bindToLifecycle(this, cameraSelector!!, previewUseCase)
+            } catch (e: Exception) {
+                Log.e(TAG, "Binding Failed: ", e)
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
 
     private fun startProcess() {}
 
     private fun endProcess() {}
 
     private fun switchView() {}
+
+    private fun bindAllUseCases() {
+        if (cameraProvider != null) {
+            cameraProvider!!.unbindAll()
+            bindPreviewUseCase()
+            bindAnalysisUseCase()
+        }
+    }
+
+    private fun bindPreviewUseCase() {
+        if (cameraProvider == null) {
+            return
+        }
+        if (previewUseCase != null) {
+            cameraProvider!!.unbind(previewUseCase)
+        }
+        previewUseCase = Preview.Builder().build().also {
+            it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
+        }
+        cameraProvider!!.bindToLifecycle(this, cameraSelector!!, previewUseCase)
+    }
+
+    private fun bindAnalysisUseCase() {}
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(

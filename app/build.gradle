@@ -31,10 +31,16 @@ android {
     }
     buildFeatures {
         viewBinding true
+        dataBinding true
+    }
+    packagingOptions {
+        resources.excludes.add("META-INF/*")
     }
 }
 
 dependencies {
+    implementation 'androidx.databinding:databinding-compiler-common:4.2.2'
+
 
     // CameraX
     def camerax_version = "1.1.0-beta01"
