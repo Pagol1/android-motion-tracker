@@ -1,7 +1,9 @@
 # android-motion-tracker
 TODO:
-- Work on the basic layout and back-end for the camera
+- ~~Work on the basic layout and back-end for the camera~~
 - Integrate mlkit's face detector
+- Add logic for movement
+- Create custom graphic to include movement text
 
 Current Task Breakdown [To be expanded]:
 - Setup a basic camera app

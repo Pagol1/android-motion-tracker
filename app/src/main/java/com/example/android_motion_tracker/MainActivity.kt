@@ -30,25 +30,27 @@ import java.util.Locale
 import com.example.android_motion_tracker.databinding.ActivityMainBinding
 import java.util.ArrayList
 
+// https://agrawalsuneet.github.io/blogs/safe-calls-vs-null-checks-in-kotlin/
+
 class MainActivity : AppCompatActivity() {
 
     /*
-    TODO:
-    - Add a permission requester for camera access
-    - Add a preview bind for the camera's view
-    - Add responses for the button inputs
+    Issues:
+    - Tracking IDs work but are temporal, moving out of the frame gives you a new ID.
     QOL:
     - Change button types to toggle
      */
 
     private lateinit var viewBinding: ActivityMainBinding
     private var graphicOverlay: GraphicOverlay? = null
-    private var previewView: PreviewView? = null
+//    private var previewView: PreviewView? = null
     private var previewUseCase: Preview? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private var cameraSelector: CameraSelector? = null
     private var cameraProvider: ProcessCameraProvider? = null
     private var processing: Boolean = false
+    private var imageAnalyzer: ImageAnalysis? = null
+    private var imageProcessor: FaceDetectionProcessor? = null
 
     // Unsure if this is the correct one
     private lateinit var cameraExecutor: ExecutorService
@@ -87,6 +89,7 @@ class MainActivity : AppCompatActivity() {
             }
             cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
             // Bind all of these to the camera
+            // Assume analysis is OFF at the beginning
             try {
                 cameraProvider!!.bindToLifecycle(this, cameraSelector!!, previewUseCase)
             } catch (e: Exception) {
@@ -95,9 +98,18 @@ class MainActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun startProcess() {}
+    private fun startProcess() {
+        processing = true
+        bindAllUseCases()
+//        graphicOverlay!!.add(TestGraphic(graphicOverlay))
+//        Toast.makeText(applicationContext, "Starting Process", Toast.LENGTH_SHORT).show()
+    }
 
-    private fun endProcess() {}
+    private fun endProcess() {
+        processing = false
+        graphicOverlay!!.clear()
+        imageProcessor?.run { this.stop() }
+    }
 
     private fun switchView() {
         val newLensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
@@ -107,6 +119,7 @@ class MainActivity : AppCompatActivity() {
                 cameraSelector = newCameraSelector
                 lensFacing = newLensFacing
                 bindAllUseCases()
+                if (!processing) { endProcess() }
                 return
             }
         } catch (e: Exception) {
@@ -132,10 +145,54 @@ class MainActivity : AppCompatActivity() {
         previewUseCase = Preview.Builder().build().also {
             it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
         }
-        cameraProvider!!.bindToLifecycle(this, cameraSelector!!, previewUseCase)
+        try {
+            cameraProvider!!.bindToLifecycle(this, cameraSelector!!, previewUseCase)
+        } catch (e: Exception) {
+            Log.e(TAG, "Binding Failed: ", e)
+        }
     }
 
-    private fun bindAnalysisUseCase() {}
+    private fun bindAnalysisUseCase() {
+        if (cameraProvider == null) {
+            return
+        }
+        if (imageAnalyzer != null) {
+            cameraProvider!!.unbind(imageAnalyzer)
+        }
+        if (imageProcessor != null) {
+            imageProcessor!!.stop()
+        }
+
+        imageProcessor = FaceDetectionProcessor()
+        imageAnalyzer = ImageAnalysis.Builder().build()
+
+        imageAnalyzer?.setAnalyzer(
+            ContextCompat.getMainExecutor(this),
+            ImageAnalysis.Analyzer { imageProxy: ImageProxy ->
+                val imgFlipped = lensFacing == CameraSelector.LENS_FACING_FRONT
+                val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+                if (rotationDegrees == 0 || rotationDegrees == 180) {
+                    graphicOverlay!!.setImageSourceInfo(imageProxy.width, imageProxy.height, imgFlipped)
+                } else {
+                    graphicOverlay!!.setImageSourceInfo(imageProxy.height, imageProxy.width, imgFlipped)
+                }
+                try {
+                    imageProcessor!!.processImgProxy(imageProxy, graphicOverlay!!)
+//                    Toast.makeText(applicationContext, "Created analyzer", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Could not add image analyzer: ", e)
+                    Toast.makeText(applicationContext, "Could not create analyzer", Toast.LENGTH_LONG).show()
+                }
+            }
+        )
+        try {
+            cameraProvider!!.bindToLifecycle(this, cameraSelector!!, imageAnalyzer)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to bind analyzer: ", e)
+            Toast.makeText(applicationContext, "Could not bind analyzer", Toast.LENGTH_LONG).show()
+        }
+
+    }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(
@@ -156,6 +213,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        imageProcessor?.run { this.stop() }
         cameraExecutor.shutdown()
     }
 
