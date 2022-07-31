@@ -3,6 +3,7 @@ package com.example.android_motion_tracker
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.util.Log
 import com.example.android_motion_tracker.GraphicOverlay
 import com.example.android_motion_tracker.GraphicOverlay.Graphic
 import com.google.mlkit.vision.face.Face
@@ -16,13 +17,14 @@ import kotlin.math.max
  * Graphic instance for rendering face position, contour, and landmarks within the associated
  * graphic overlay view.
  */
-class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face) : Graphic(overlay) {
+class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face, private var mov: Int) : Graphic(overlay) {
     private val facePositionPaint: Paint
     private val numColors = COLORS.size
     private val idPaints = Array(numColors) { Paint() }
     private val boxPaints = Array(numColors) { Paint() }
     private val labelPaints = Array(numColors) { Paint() }
-
+    private val movDirs = MutableList(3) { _ -> 0}
+//    private var mov = 0
     init {
         val selectedColor = Color.WHITE
         facePositionPaint = Paint()
@@ -38,6 +40,38 @@ class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face) 
             labelPaints[i] = Paint()
             labelPaints[i].color = COLORS[i][1]
             labelPaints[i].style = Paint.Style.FILL
+        }
+        // Movement Initializer
+        try {
+            Log.i("Mov_Arr", "%d %d %d".format(movDirs[0],movDirs[1],movDirs[2]))
+        if (mov >= MovementDir.MOV_BACK) {
+            mov -= MovementDir.MOV_BACK
+            movDirs[2] = 1
+        }
+        else if (mov >= MovementDir.MOV_FRONT) {
+            mov -= MovementDir.MOV_FRONT
+            movDirs[2] = -1
+        }
+
+        if (mov >= MovementDir.MOV_DOWN) {
+            mov -= MovementDir.MOV_DOWN
+            movDirs[1] = 1
+        }
+        else if (mov >= MovementDir.MOV_UP) {
+            mov -= MovementDir.MOV_UP
+            movDirs[1] = -1
+        }
+
+        if (mov >= MovementDir.MOV_RIGHT) {
+            mov -= MovementDir.MOV_RIGHT
+            movDirs[0] = 1
+        }
+        else if (mov >= MovementDir.MOV_LEFT) {
+            mov -= MovementDir.MOV_LEFT
+            movDirs[0] = -1
+        }
+        } catch (e: Exception) {
+            Log.e("Mov_Arr", "Could not get movement direction", e)
         }
     }
 
@@ -63,57 +97,57 @@ class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face) 
 
         // Calculate width and height of label box
         var textWidth = idPaints[colorID].measureText("ID: " + face.trackingId)
-        if (face.smilingProbability != null) {
-            yLabelOffset -= lineHeight
-            textWidth =
-                max(
-                    textWidth,
-                    idPaints[colorID].measureText(
-                        String.format(Locale.US, "Happiness: %.2f", face.smilingProbability)
-                    )
-                )
-        }
-        if (face.leftEyeOpenProbability != null) {
-            yLabelOffset -= lineHeight
-            textWidth =
-                max(
-                    textWidth,
-                    idPaints[colorID].measureText(
-                        String.format(Locale.US, "Left eye open: %.2f", face.leftEyeOpenProbability)
-                    )
-                )
-        }
-        if (face.rightEyeOpenProbability != null) {
-            yLabelOffset -= lineHeight
-            textWidth =
-                max(
-                    textWidth,
-                    idPaints[colorID].measureText(
-                        String.format(Locale.US, "Right eye open: %.2f", face.rightEyeOpenProbability)
-                    )
-                )
-        }
+//        if (face.smilingProbability != null) {
+//            yLabelOffset -= lineHeight
+//            textWidth =
+//                max(
+//                    textWidth,
+//                    idPaints[colorID].measureText(
+//                        String.format(Locale.US, "Happiness: %.2f", face.smilingProbability)
+//                    )
+//                )
+//        }
+//        if (face.leftEyeOpenProbability != null) {
+//            yLabelOffset -= lineHeight
+//            textWidth =
+//                max(
+//                    textWidth,
+//                    idPaints[colorID].measureText(
+//                        String.format(Locale.US, "Left eye open: %.2f", face.leftEyeOpenProbability)
+//                    )
+//                )
+//        }
+//        if (face.rightEyeOpenProbability != null) {
+//            yLabelOffset -= lineHeight
+//            textWidth =
+//                max(
+//                    textWidth,
+//                    idPaints[colorID].measureText(
+//                        String.format(Locale.US, "Right eye open: %.2f", face.rightEyeOpenProbability)
+//                    )
+//                )
+//        }
 
         yLabelOffset = yLabelOffset - 3 * lineHeight
         textWidth =
             Math.max(
                 textWidth,
                 idPaints[colorID].measureText(
-                    String.format(Locale.US, "EulerX: %.2f", face.headEulerAngleX)
+                    String.format(Locale.US, "MovementX: %d", movDirs[0])
                 )
             )
         textWidth =
             Math.max(
                 textWidth,
                 idPaints[colorID].measureText(
-                    String.format(Locale.US, "EulerY: %.2f", face.headEulerAngleY)
+                    String.format(Locale.US, "MovementY: %d", movDirs[1])
                 )
             )
         textWidth =
             Math.max(
                 textWidth,
                 idPaints[colorID].measureText(
-                    String.format(Locale.US, "EulerZ: %.2f", face.headEulerAngleZ)
+                    String.format(Locale.US, "MovementZ: %d", movDirs[2])
                 )
             )
 
@@ -145,26 +179,26 @@ class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face) 
         }
 
         // Draws smiling and left/right eye open probabilities.
-        if (face.smilingProbability != null) {
-            canvas.drawText(
-                "Smiling: " + String.format(Locale.US, "%.2f", face.smilingProbability),
-                left,
-                top + yLabelOffset,
-                idPaints[colorID]
-            )
-            yLabelOffset += lineHeight
-        }
+//        if (face.smilingProbability != null) {
+//            canvas.drawText(
+//                "Smiling: " + String.format(Locale.US, "%.2f", face.smilingProbability),
+//                left,
+//                top + yLabelOffset,
+//                idPaints[colorID]
+//            )
+//            yLabelOffset += lineHeight
+//        }
 
         val leftEye = face.getLandmark(FaceLandmark.LEFT_EYE)
-        if (face.leftEyeOpenProbability != null) {
-            canvas.drawText(
-                "Left eye open: " + String.format(Locale.US, "%.2f", face.leftEyeOpenProbability),
-                left,
-                top + yLabelOffset,
-                idPaints[colorID]
-            )
-            yLabelOffset += lineHeight
-        }
+//        if (face.leftEyeOpenProbability != null) {
+//            canvas.drawText(
+//                "Left eye open: " + String.format(Locale.US, "%.2f", face.leftEyeOpenProbability),
+//                left,
+//                top + yLabelOffset,
+//                idPaints[colorID]
+//            )
+//            yLabelOffset += lineHeight
+//        }
         if (leftEye != null) {
             val leftEyeLeft =
                 translateX(leftEye.position.x) - idPaints[colorID].measureText("Left Eye") / 2.0f
@@ -184,15 +218,15 @@ class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face) 
         }
 
         val rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE)
-        if (face.rightEyeOpenProbability != null) {
-            canvas.drawText(
-                "Right eye open: " + String.format(Locale.US, "%.2f", face.rightEyeOpenProbability),
-                left,
-                top + yLabelOffset,
-                idPaints[colorID]
-            )
-            yLabelOffset += lineHeight
-        }
+//        if (face.rightEyeOpenProbability != null) {
+//            canvas.drawText(
+//                "Right eye open: " + String.format(Locale.US, "%.2f", face.rightEyeOpenProbability),
+//                left,
+//                top + yLabelOffset,
+//                idPaints[colorID]
+//            )
+//            yLabelOffset += lineHeight
+//        }
         if (rightEye != null) {
             val rightEyeLeft =
                 translateX(rightEye.position.x) - idPaints[colorID].measureText("Right Eye") / 2.0f
@@ -211,11 +245,11 @@ class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face) 
             )
         }
 
-        canvas.drawText("EulerX: " + face.headEulerAngleX, left, top + yLabelOffset, idPaints[colorID])
+        canvas.drawText("MovementX: "+ String.format(Locale.US, "%d", movDirs[0]), left, top + yLabelOffset, idPaints[colorID])
         yLabelOffset += lineHeight
-        canvas.drawText("EulerY: " + face.headEulerAngleY, left, top + yLabelOffset, idPaints[colorID])
+        canvas.drawText("MovementY: "+ String.format(Locale.US, "%d", movDirs[1]), left, top + yLabelOffset, idPaints[colorID])
         yLabelOffset += lineHeight
-        canvas.drawText("EulerZ: " + face.headEulerAngleZ, left, top + yLabelOffset, idPaints[colorID])
+        canvas.drawText("MovementZ: "+ String.format(Locale.US, "%d", movDirs[2]), left, top + yLabelOffset, idPaints[colorID])
 
         // Draw facial landmarks
         drawFaceLandmark(canvas, FaceLandmark.LEFT_EYE)
@@ -257,3 +291,4 @@ class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face) 
             )
     }
 }
+

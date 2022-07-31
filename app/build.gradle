@@ -41,6 +41,12 @@ android {
 dependencies {
     implementation 'androidx.databinding:databinding-compiler-common:4.2.2'
 
+    // OpenCV
+    // https://github.com/chaoyangnz/opencv3-android-sdk-with-contrib
+    // https://github.com/QuickBirdEng/opencv-android
+    def opencv_version = "4.5.3.0"
+//    implementation "com.quickbirdstudios:opencv-contrib:${opencv_version}"
+    implementation "com.quickbirdstudios:opencv:${opencv_version}"
 
     // CameraX
     def camerax_version = "1.1.0-beta01"
