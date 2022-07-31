@@ -1,9 +1,12 @@
 # android-motion-tracker
 TODO:
 - ~~Work on the basic layout and back-end for the camera~~
-- Integrate mlkit's face detector
-- Add logic for movement
-- Create custom graphic to include movement text
+- ~~Integrate mlkit's face detector~~
+- ~~Add logic for movement~~
+- ~~Create custom graphic to include movement text~~
+- Tweak threshold parameters for basic_movement_tracker
+- Test OpenCV's sfm module <- Need to compile for android
+- Display velocity in place of direction
 
 Current Task Breakdown [To be expanded]:
 - Setup a basic camera app
