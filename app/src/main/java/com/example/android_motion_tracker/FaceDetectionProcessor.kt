@@ -2,6 +2,7 @@ package com.example.android_motion_tracker
 
 import android.annotation.SuppressLint
 import android.graphics.PointF
+import android.os.SystemClock
 import android.util.Log
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
@@ -12,16 +13,16 @@ import com.google.mlkit.vision.pose.PoseDetector
 import com.google.mlkit.vision.pose.PoseLandmark
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlin.math.abs
+import kotlin.math.sqrt
+
 // https://stackoverflow.com/questions/57203678/detecting-contours-of-multiple-faces-via-firebase-ml-kit-face-detection
 
 class FaceDetectionProcessor {
     /*
      TODO:
      - Find a way to wait for pose detection to complete before movement calculation
+     - Add a way to compare poses and faceIds
      */
 //    private var facesDetected
     private var faceFeatureMap: HashMap<Int, FaceTrackedFeatures> = HashMap()
@@ -58,9 +59,16 @@ class FaceDetectionProcessor {
         .build()
     private var pose_detector: PoseDetector = PoseDetection.getClient(poseDetectorOptions)
 
-    @OptIn(DelicateCoroutinesApi::class)
+    private var timeStashed: Boolean = false
+    private var prevTime: Long = 0
+    private var curTime: Long = 0
+
+    private var displayVelocity: Boolean = true
+
+//    @OptIn(DelicateCoroutinesApi::class)
     @SuppressLint("UnsafeOptInUsageError")
     fun processImgProxy(imageProxy: ImageProxy, graphicOverlay: GraphicOverlay) {
+        curTime = SystemClock.elapsedRealtime()
         val inputImage = InputImage.fromMediaImage(imageProxy.image!!, imageProxy.imageInfo.rotationDegrees)
         var failedBoth = true
 //        var test = 0
@@ -106,8 +114,7 @@ class FaceDetectionProcessor {
                     imageProxy.close()
                     onFailure(graphicOverlay)
                 }
-
-
+        //TODO: Integrate Coroutines, await till end -> shift movement/velocity calculations and graphics update here
 //        Log.i(TAG, "TEST1: %d".format(test))
         // listeners are async
 //        if (failedBoth) onFailure(graphicOverlay)
@@ -154,6 +161,7 @@ class FaceDetectionProcessor {
             // - Add processing for points here
             // - Approximate Z and find [R|T] matrix
             var movement: Int = MovementDir.MOV_NONE
+            var velocity: List<Float> = List(3) {0.0F}
             try {
                 val faceId = face.trackingId
                 val newFeatureMap = getFeatureList(face.allContours)
@@ -163,7 +171,10 @@ class FaceDetectionProcessor {
                 // Face already being tracked, detect changes and update values
                 if (activeFaceList.containsKey(faceId)) {
                     activeFaceList[faceId] = 1
-                    movement = getMovementBasicFace(faceFeatureMap.get(faceId), newFaceTrackedFeatures)
+                    if (displayVelocity)
+                        velocity = getVelocity(faceFeatureMap.get(faceId), newFaceTrackedFeatures, curTime-prevTime)
+                    else
+                        movement = getMovementBasicFace(faceFeatureMap.get(faceId), newFaceTrackedFeatures)
                     faceFeatureMap.put(faceId, newFaceTrackedFeatures)
                 }
                 // Start tracking new face, register values
@@ -174,16 +185,24 @@ class FaceDetectionProcessor {
             } catch (e: Exception) {
                 Log.e(TAG, "Face Tracking Failed", e)
             }
+            // TODO: Implement co-routines and enable this
             if (chestMotionAvaliable) {
                 // Override
-                movement = getMovementBasicChest(posesDetected, updatedPosesDetected)
+//                movement = getMovementBasicChest(posesDetected, updatedPosesDetected)
+                if (timeStashed) {
+//                velocity = getVelocity(posesDetected, updatedPosesDetected, curTime-prevTime)
+                }
             }
             // Update pose | Clear update queue
             for (key in updatedPosesDetected.keys) {
                 posesDetected[key] = updatedPosesDetected[key]
                 updatedPosesDetected[key] = null
             }
-            graphicOverlay.add(FaceGraphic(graphicOverlay, face, movement))
+
+            graphicOverlay.add(FaceGraphic(graphicOverlay, face, movement, velocity, displayVelocity))
+
+            timeStashed = true
+            prevTime = curTime
         }
 
         for (id in activeFaceList.keys) {
@@ -255,6 +274,40 @@ class FaceDetectionProcessor {
     }
 
     private fun sel(val1: Float, val2: Float, thresh: Float, retGt: Int, retLt: Int, retNone: Int): Int {
+        if (abs(val1 - val2) > thresh) {
+            if (val1 > val2) {
+                return retGt
+            }
+            else {
+                return retLt
+            }
+        }
+        else {
+            return retNone
+        }
+    }
+
+    private fun getVelocity(old: FaceTrackedFeatures?, new: FaceTrackedFeatures?, elapsedTime: Long): List<Float> {
+        // For z-velocity, del_z is proportional to -sqrt(del_Area)
+        var retVal = MutableList<Float>(3) {0.0F}
+        val vel_z = sqrt(abs(new!!.bbArea - old!!.bbArea))*1000/elapsedTime
+        val vel_y = (new.features[FaceContour.NOSE_BRIDGE]!![0].y - old.features[FaceContour.NOSE_BRIDGE]!![0].y)*1000/elapsedTime
+        val vel_x = (new.features[FaceContour.NOSE_BRIDGE]!![0].y - old.features[FaceContour.NOSE_BRIDGE]!![0].y)*1000/elapsedTime
+//        val vel_y = abs(old.features[FaceContour.NOSE_BRIDGE]!![0].y - new.features[FaceContour.NOSE_BRIDGE]!![0].y)
+//        val vel_x = abs(old.features[FaceContour.NOSE_BRIDGE]!![0].x - new.features[FaceContour.NOSE_BRIDGE]!![0].x)
+        retVal[2] = sel(old!!.bbArea, new!!.bbArea, 2.0F, vel_z, -vel_z, 0.0F)
+        retVal[1] = vel_y
+        retVal[0] = vel_x
+//        retVal[1] = sel(old.features[FaceContour.NOSE_BRIDGE]!![0].y, new.features[FaceContour.NOSE_BRIDGE]!![0].y, 2.0F, vel_y, -vel_y, 0.0F)
+//        retVal[0] = sel(old.features[FaceContour.NOSE_BRIDGE]!![0].x, new.features[FaceContour.NOSE_BRIDGE]!![0].x, 2.0F, vel_x, -vel_x, 0.0F)
+        return retVal
+    }
+
+    private fun getVelocity(old: HashMap<Int, PoseLandmark?>, new: HashMap<Int, PoseLandmark?>, elapsedTime: Long): List<Float> {
+        return List<Float>(3) {0.0F}
+    }
+
+    private fun sel(val1: Float, val2: Float, thresh: Float, retGt: Float, retLt: Float, retNone: Float): Float {
         if (abs(val1 - val2) > thresh) {
             if (val1 > val2) {
                 return retGt

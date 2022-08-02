@@ -17,7 +17,7 @@ import kotlin.math.max
  * Graphic instance for rendering face position, contour, and landmarks within the associated
  * graphic overlay view.
  */
-class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face, private var mov: Int) : Graphic(overlay) {
+class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face, private var mov: Int, private val vel: List<Float>, private val showVel: Boolean) : Graphic(overlay) {
     private val facePositionPaint: Paint
     private val numColors = COLORS.size
     private val idPaints = Array(numColors) { Paint() }
@@ -129,28 +129,52 @@ class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face, 
 //        }
 
         yLabelOffset = yLabelOffset - 3 * lineHeight
-        textWidth =
-            Math.max(
-                textWidth,
-                idPaints[colorID].measureText(
-                    String.format(Locale.US, "MovementX: %d", movDirs[0])
+        if (showVel) {
+            textWidth =
+                Math.max(
+                    textWidth,
+                    idPaints[colorID].measureText(
+                        String.format(Locale.US, "VelX: %.2f", vel[0])
+                    )
                 )
-            )
-        textWidth =
-            Math.max(
-                textWidth,
-                idPaints[colorID].measureText(
-                    String.format(Locale.US, "MovementY: %d", movDirs[1])
+            textWidth =
+                Math.max(
+                    textWidth,
+                    idPaints[colorID].measureText(
+                        String.format(Locale.US, "VelY: %.2f", vel[1])
+                    )
                 )
-            )
-        textWidth =
-            Math.max(
-                textWidth,
-                idPaints[colorID].measureText(
-                    String.format(Locale.US, "MovementZ: %d", movDirs[2])
+            textWidth =
+                Math.max(
+                    textWidth,
+                    idPaints[colorID].measureText(
+                        String.format(Locale.US, "VelZ: %.2f", vel[2])
+                    )
                 )
-            )
-
+        }
+        else {
+            textWidth =
+                Math.max(
+                    textWidth,
+                    idPaints[colorID].measureText(
+                        String.format(Locale.US, "MovementX: %d", movDirs[0])
+                    )
+                )
+            textWidth =
+                Math.max(
+                    textWidth,
+                    idPaints[colorID].measureText(
+                        String.format(Locale.US, "MovementY: %d", movDirs[1])
+                    )
+                )
+            textWidth =
+                Math.max(
+                    textWidth,
+                    idPaints[colorID].measureText(
+                        String.format(Locale.US, "MovementZ: %d", movDirs[2])
+                    )
+                )
+        }
         // Draw labels
         canvas.drawRect(
             left - BOX_STROKE_WIDTH,
@@ -245,11 +269,20 @@ class FaceGraphic constructor(overlay: GraphicOverlay?, private val face: Face, 
             )
         }
 
-        canvas.drawText("MovementX: "+ String.format(Locale.US, "%d", movDirs[0]), left, top + yLabelOffset, idPaints[colorID])
-        yLabelOffset += lineHeight
-        canvas.drawText("MovementY: "+ String.format(Locale.US, "%d", movDirs[1]), left, top + yLabelOffset, idPaints[colorID])
-        yLabelOffset += lineHeight
-        canvas.drawText("MovementZ: "+ String.format(Locale.US, "%d", movDirs[2]), left, top + yLabelOffset, idPaints[colorID])
+        if (showVel) {
+            canvas.drawText("VelX: "+ String.format(Locale.US, "%.2f", vel[0]), left, top + yLabelOffset, idPaints[colorID])
+            yLabelOffset += lineHeight
+            canvas.drawText("VelY: "+ String.format(Locale.US, "%.2f", vel[1]), left, top + yLabelOffset, idPaints[colorID])
+            yLabelOffset += lineHeight
+            canvas.drawText("VelZ: "+ String.format(Locale.US, "%.2f", vel[2]), left, top + yLabelOffset, idPaints[colorID])
+        }
+        else {
+            canvas.drawText("MovementX: "+ String.format(Locale.US, "%d", movDirs[0]), left, top + yLabelOffset, idPaints[colorID])
+            yLabelOffset += lineHeight
+            canvas.drawText("MovementY: "+ String.format(Locale.US, "%d", movDirs[1]), left, top + yLabelOffset, idPaints[colorID])
+            yLabelOffset += lineHeight
+            canvas.drawText("MovementZ: "+ String.format(Locale.US, "%d", movDirs[2]), left, top + yLabelOffset, idPaints[colorID])
+        }
 
         // Draw facial landmarks
         drawFaceLandmark(canvas, FaceLandmark.LEFT_EYE)
