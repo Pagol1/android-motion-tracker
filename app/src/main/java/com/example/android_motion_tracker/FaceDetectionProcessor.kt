@@ -238,9 +238,9 @@ class FaceDetectionProcessor {
 
     private fun getMovementBasicFace(old: FaceTrackedFeatures?, new: FaceTrackedFeatures?): Int {
         var retVal = MovementDir.MOV_NONE
-        retVal += sel(old!!.bbArea, new!!.bbArea, 4.0F, MovementDir.MOV_BACK, MovementDir.MOV_FRONT, MovementDir.MOV_NONE)
-        retVal += sel(old.features[FaceContour.NOSE_BRIDGE]!![0].y, new.features[FaceContour.NOSE_BRIDGE]!![0].y, 2.0F, MovementDir.MOV_UP, MovementDir.MOV_DOWN, MovementDir.MOV_NONE)
-        retVal += sel(old.features[FaceContour.NOSE_BRIDGE]!![0].x, new.features[FaceContour.NOSE_BRIDGE]!![0].x, 2.0F, MovementDir.MOV_LEFT, MovementDir.MOV_RIGHT, MovementDir.MOV_NONE)
+        retVal += sel(old!!.bbArea, new!!.bbArea, 16.0F, MovementDir.MOV_BACK, MovementDir.MOV_FRONT, MovementDir.MOV_NONE)
+        retVal += sel(old.features[FaceContour.NOSE_BRIDGE]!![0].y, new.features[FaceContour.NOSE_BRIDGE]!![0].y, 4.0F, MovementDir.MOV_UP, MovementDir.MOV_DOWN, MovementDir.MOV_NONE)
+        retVal += sel(old.features[FaceContour.NOSE_BRIDGE]!![0].x, new.features[FaceContour.NOSE_BRIDGE]!![0].x, 4.0F, MovementDir.MOV_LEFT, MovementDir.MOV_RIGHT, MovementDir.MOV_NONE)
 //        retVal += if (old!!.bbArea > new!!.bbArea) MovementDir.MOV_BACK else MovementDir.MOV_FRONT
 //        retVal += if (old.features[FaceContour.NOSE_BRIDGE]!![0].y > new.features[FaceContour.NOSE_BRIDGE]!![0].y) MovementDir.MOV_UP else MovementDir.MOV_DOWN
 //        retVal += if (old.features[FaceContour.NOSE_BRIDGE]!![0].x > new.features[FaceContour.NOSE_BRIDGE]!![0].x) MovementDir.MOV_LEFT else MovementDir.MOV_RIGHT
@@ -290,16 +290,16 @@ class FaceDetectionProcessor {
     private fun getVelocity(old: FaceTrackedFeatures?, new: FaceTrackedFeatures?, elapsedTime: Long): List<Float> {
         // For z-velocity, del_z is proportional to -sqrt(del_Area)
         var retVal = MutableList<Float>(3) {0.0F}
-        val vel_z = sqrt(abs(new!!.bbArea - old!!.bbArea))*1000/elapsedTime
-        val vel_y = (new.features[FaceContour.NOSE_BRIDGE]!![0].y - old.features[FaceContour.NOSE_BRIDGE]!![0].y)*1000/elapsedTime
-        val vel_x = (new.features[FaceContour.NOSE_BRIDGE]!![0].y - old.features[FaceContour.NOSE_BRIDGE]!![0].y)*1000/elapsedTime
-//        val vel_y = abs(old.features[FaceContour.NOSE_BRIDGE]!![0].y - new.features[FaceContour.NOSE_BRIDGE]!![0].y)
-//        val vel_x = abs(old.features[FaceContour.NOSE_BRIDGE]!![0].x - new.features[FaceContour.NOSE_BRIDGE]!![0].x)
-        retVal[2] = sel(old!!.bbArea, new!!.bbArea, 2.0F, vel_z, -vel_z, 0.0F)
-        retVal[1] = vel_y
-        retVal[0] = vel_x
-//        retVal[1] = sel(old.features[FaceContour.NOSE_BRIDGE]!![0].y, new.features[FaceContour.NOSE_BRIDGE]!![0].y, 2.0F, vel_y, -vel_y, 0.0F)
-//        retVal[0] = sel(old.features[FaceContour.NOSE_BRIDGE]!![0].x, new.features[FaceContour.NOSE_BRIDGE]!![0].x, 2.0F, vel_x, -vel_x, 0.0F)
+        val vel_z = sqrt(abs(new!!.bbArea - old!!.bbArea))*1000/(4*elapsedTime)
+//        val vel_y = (new.features[FaceContour.NOSE_BRIDGE]!![0].y - old.features[FaceContour.NOSE_BRIDGE]!![0].y)*1000/elapsedTime
+//        val vel_x = (new.features[FaceContour.NOSE_BRIDGE]!![0].y - old.features[FaceContour.NOSE_BRIDGE]!![0].y)*1000/elapsedTime
+        val vel_y = abs(old.features[FaceContour.NOSE_BRIDGE]!![0].y - new.features[FaceContour.NOSE_BRIDGE]!![0].y)*1000/elapsedTime
+        val vel_x = abs(old.features[FaceContour.NOSE_BRIDGE]!![0].x - new.features[FaceContour.NOSE_BRIDGE]!![0].x)*1000/elapsedTime
+        retVal[2] = sel(old.bbArea, new.bbArea, 16.0F, -vel_z, vel_z, 0.0F)
+//        retVal[1] = vel_y
+//        retVal[0] = vel_x
+        retVal[1] = sel(old.features[FaceContour.NOSE_BRIDGE]!![0].y, new.features[FaceContour.NOSE_BRIDGE]!![0].y, 4.0F, vel_y, -vel_y, 0.0F)
+        retVal[0] = sel(old.features[FaceContour.NOSE_BRIDGE]!![0].x, new.features[FaceContour.NOSE_BRIDGE]!![0].x, 4.0F, vel_x, -vel_x, 0.0F)
         return retVal
     }
 
