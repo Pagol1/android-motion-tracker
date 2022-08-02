@@ -51,7 +51,7 @@ class MainActivity : AppCompatActivity() {
     private var processing: Boolean = false
     private var imageAnalyzer: ImageAnalysis? = null
     private var imageProcessor: FaceDetectionProcessor? = null
-
+    private var needUpdateGraphicOverlay: Boolean = true
     // Unsure if this is the correct one
     private lateinit var cameraExecutor: ExecutorService
 
@@ -100,14 +100,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun startProcess() {
         processing = true
-        bindAllUseCases()
+        bindAllUseCases(true)
 //        graphicOverlay!!.add(TestGraphic(graphicOverlay))
 //        Toast.makeText(applicationContext, "Starting Process", Toast.LENGTH_SHORT).show()
     }
 
     private fun endProcess() {
+        Log.i(TAG, "Ending process")
         processing = false
         graphicOverlay!!.clear()
+        bindAllUseCases(false)
         imageProcessor?.run { this.stop() }
     }
 
@@ -118,20 +120,25 @@ class MainActivity : AppCompatActivity() {
             if (cameraProvider!!.hasCamera(newCameraSelector)) {
                 cameraSelector = newCameraSelector
                 lensFacing = newLensFacing
-                bindAllUseCases()
-                if (!processing) { endProcess() }
-                return
+                needUpdateGraphicOverlay = true
+                if (processing) {
+                    bindAllUseCases(true)
+                }
+                else {
+                    bindAllUseCases(false)
+                }
+//                if (!processing) { endProcess() }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Camera cannot be changed: ", e)
         }
     }
 
-    private fun bindAllUseCases() {
+    private fun bindAllUseCases(bindAnalysis: Boolean) {
         if (cameraProvider != null) {
             cameraProvider!!.unbindAll()
             bindPreviewUseCase()
-            bindAnalysisUseCase()
+            if (bindAnalysis) bindAnalysisUseCase()
         }
     }
 
@@ -169,12 +176,22 @@ class MainActivity : AppCompatActivity() {
         imageAnalyzer?.setAnalyzer(
             ContextCompat.getMainExecutor(this),
             ImageAnalysis.Analyzer { imageProxy: ImageProxy ->
-                val imgFlipped = lensFacing == CameraSelector.LENS_FACING_FRONT
-                val rotationDegrees = imageProxy.imageInfo.rotationDegrees
-                if (rotationDegrees == 0 || rotationDegrees == 180) {
-                    graphicOverlay!!.setImageSourceInfo(imageProxy.width, imageProxy.height, imgFlipped)
-                } else {
-                    graphicOverlay!!.setImageSourceInfo(imageProxy.height, imageProxy.width, imgFlipped)
+                if (needUpdateGraphicOverlay) {
+                    val imgFlipped = lensFacing == CameraSelector.LENS_FACING_FRONT
+                    val rotationDegrees = imageProxy.imageInfo.rotationDegrees
+                    if (rotationDegrees == 0 || rotationDegrees == 180) {
+                        graphicOverlay!!.setImageSourceInfo(
+                            imageProxy.width,
+                            imageProxy.height,
+                            imgFlipped
+                        )
+                    } else {
+                        graphicOverlay!!.setImageSourceInfo(
+                            imageProxy.height,
+                            imageProxy.width,
+                            imgFlipped
+                        )
+                    }
                 }
                 try {
                     imageProcessor!!.processImgProxy(imageProxy, graphicOverlay!!)
