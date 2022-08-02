@@ -1,24 +1,27 @@
 package com.example.android_motion_tracker
 
 import android.annotation.SuppressLint
-import android.graphics.Point
 import android.graphics.PointF
 import android.util.Log
 import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.*
-import com.google.mlkit.vision.pose.*
+import com.google.mlkit.vision.pose.Pose
+import com.google.mlkit.vision.pose.PoseDetection
+import com.google.mlkit.vision.pose.PoseDetector
+import com.google.mlkit.vision.pose.PoseLandmark
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlin.math.abs
-
 // https://stackoverflow.com/questions/57203678/detecting-contours-of-multiple-faces-via-firebase-ml-kit-face-detection
 
 class FaceDetectionProcessor {
     /*
      TODO:
-     - Add Two containers: One for storing the previous value of landmarks, next one for storing the accesses.
-     - Pose detector IDs are separate from the face detector IDs: Use pose, extract body, feed into face without tracking
-     IMP: Consecutive face detections failing
+     - Find a way to wait for pose detection to complete before movement calculation
      */
 //    private var facesDetected
     private var faceFeatureMap: HashMap<Int, FaceTrackedFeatures> = HashMap()
@@ -55,48 +58,59 @@ class FaceDetectionProcessor {
         .build()
     private var pose_detector: PoseDetector = PoseDetection.getClient(poseDetectorOptions)
 
+    @OptIn(DelicateCoroutinesApi::class)
     @SuppressLint("UnsafeOptInUsageError")
     fun processImgProxy(imageProxy: ImageProxy, graphicOverlay: GraphicOverlay) {
         val inputImage = InputImage.fromMediaImage(imageProxy.image!!, imageProxy.imageInfo.rotationDegrees)
         var failedBoth = true
-        pose_detector.process(inputImage)
-            .addOnSuccessListener { task ->
+//        var test = 0
+//        var task1 = GlobalScope.async {
+            pose_detector.process(inputImage)
+                .addOnSuccessListener { task ->
 //                val results = task.allPoseLandmarks
-                // If all four are there, store and track across frames
-                failedBoth = false
-                Log.i(TAG, "Pose detection Succeeded")
-                try {
-                    onPoseSuccess(task)
-                } catch(e: Exception) {
-                    Log.e(TAG, "Pose tracking failed", e)
+                    // If all four are there, store and track across frames
+                    failedBoth = false
+                    Log.i(TAG, "Pose detection Succeeded")
+                    try {
+                        onPoseSuccess(task)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Pose tracking failed", e)
+                    }
+                    if (chestDetected) {
+                        Log.i(TAG, "Chest detected")
+                    }
+//                test += 1
                 }
-                if (chestDetected) {
-                    Log.i(TAG, "Chest detected")
+                .addOnFailureListener {
+                    chestDetected = false
+                    chestMotionAvaliable = false
+//                test += 2
+                    Log.e(TAG, "Pose detection Failed")
+                    // Do nothing (switch to face only)
                 }
-            }
-            .addOnFailureListener {
-                chestDetected = false
-                chestMotionAvaliable = false
-                Log.e(TAG, "Pose detection Failed")
-                // Do nothing (switch to face only)
-                imageProxy.close()
-            }
+//        }
+//        awaitAll(task1)
 
-        detector.process(inputImage)
-            .addOnSuccessListener { results ->
-                failedBoth = false
-                Log.i(TAG, "Face detection Succeeded")
-                onFaceSuccess(results, graphicOverlay)
-                imageProxy.close()
-            }
-            .addOnFailureListener {
+            detector.process(inputImage)
+                .addOnSuccessListener { results ->
+                    failedBoth = false
+                    Log.i(TAG, "Face detection Succeeded")
+                    onFaceSuccess(results, graphicOverlay)
+//                test += 4
+                    imageProxy.close()
+                }
+                .addOnFailureListener {
 //                onFaceFailure(it, graphicOverlay)
-                Log.e(TAG, "Face detection Failed")
-                imageProxy.close()
-            }
+                    Log.e(TAG, "Face detection Failed")
+//                test += 8
+                    imageProxy.close()
+                    onFailure(graphicOverlay)
+                }
 
-        if (failedBoth) onFailure(graphicOverlay)
 
+//        Log.i(TAG, "TEST1: %d".format(test))
+        // listeners are async
+//        if (failedBoth) onFailure(graphicOverlay)
 
     }
 
@@ -186,7 +200,7 @@ class FaceDetectionProcessor {
 
     private fun onFailure(graphicOverlay: GraphicOverlay) {
         graphicOverlay.clear()
-        Log.e(TAG, "Face detection failed")
+        Log.e(TAG, "Both detections failed")
     }
 
     fun stop() {
@@ -229,9 +243,10 @@ class FaceDetectionProcessor {
         val rh1 = old[PoseLandmark.RIGHT_SHOULDER]!!.position
         val c1 = PointF((ls1.x+lh1.x+rh1.x+rs1.x)/4, (ls1.y+lh1.y+rh1.y+rs1.y)/4)
         // Calculate return value
-        retVal += sel(chestBBarea(ls0, rs0, lh0), chestBBarea(ls1, rs1, lh1), 2.0F, MovementDir.MOV_BACK, MovementDir.MOV_FRONT, MovementDir.MOV_NONE)
-        retVal += sel(c0.y, c1.y, 1.0F, MovementDir.MOV_UP, MovementDir.MOV_DOWN, MovementDir.MOV_NONE)
-        retVal += sel(c0.x, c1.x, 1.0F, MovementDir.MOV_LEFT, MovementDir.MOV_RIGHT, MovementDir.MOV_NONE)
+        retVal += sel(chestBBarea(ls0, rs0, lh0), chestBBarea(ls1, rs1, lh1), 0.4F, MovementDir.MOV_BACK, MovementDir.MOV_FRONT, MovementDir.MOV_NONE)
+        retVal += sel(c0.y, c1.y, 0.1F, MovementDir.MOV_UP, MovementDir.MOV_DOWN, MovementDir.MOV_NONE)
+        retVal += sel(c0.x, c1.x, 0.1F, MovementDir.MOV_LEFT, MovementDir.MOV_RIGHT, MovementDir.MOV_NONE)
+        Log.i("TEST", "%.2f %.2f %.2f".format(chestBBarea(ls0, rs0, lh0)-chestBBarea(ls1, rs1, lh1), c0.y-c1.y, c0.x-c1.x))
         return retVal
     }
 

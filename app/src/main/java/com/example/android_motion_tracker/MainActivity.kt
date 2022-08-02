@@ -171,7 +171,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         imageProcessor = FaceDetectionProcessor()
-        imageAnalyzer = ImageAnalysis.Builder().build()
+        imageAnalyzer = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
 
         imageAnalyzer?.setAnalyzer(
             ContextCompat.getMainExecutor(this),
